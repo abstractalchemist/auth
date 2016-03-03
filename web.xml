@@ -1,0 +1,33 @@
+<web-app xmlns="http://java.sun.com/xml/ns/javaee" version="2.5">
+  <servlet>
+    <servlet-name>oauth2</servlet-name>
+    <servlet-class>auth.google.oauth2</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>oauth2</servlet-name>
+    <url-pattern>/oauth2</url-pattern>
+  </servlet-mapping>
+  
+  <servlet>
+    <servlet-name>oauth2 callback</servlet-name>
+    <servlet-class>auth.google.oauth_callback</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>oauth2-callback</servlet-name>
+    <url-pattern>/oauth2-callback</url-pattern>
+  </servlet-mapping>
+
+  <servlet>
+    <servlet-name>auth servlet</servlet-name>
+    <servlet-class>auth.servlet</servlet-class>
+  </servlet>
+  <servlet-mapping>
+    <servlet-name>auth servlet</servlet-name>
+    <url-pattern>/*</url-pattern>
+  </servlet-mapping>
+  
+  <listener>
+    <listener-class>auth.listener</listener-class>
+  </listener>
+  
+</web-app>
