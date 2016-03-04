@@ -7,6 +7,7 @@
   (:require [compojure.core :refer :all]
             [compojure.route :as route]
             [clojure.pprint]
+            [auth.sign]
             [ring.middleware.defaults :refer [wrap-defaults site-defaults]]))
 
 (defonce CLIENT_ID "281796100165-8fjodck6rd1rp95c28ms79jq2ka2i6jg.apps.googleusercontent.com")
@@ -29,13 +30,28 @@
               (.build)))
 
 (defroutes app-routes
-  (GET "/" [] "Hello World")
   (context "/signin" []
-           (GET "/oauth2" {{:keys [userid] :as session} :session {:keys [code]} :params}
-                (log "in oaut2 url looking for user id " userid)
+           (OPTIONS "/oaut2" []
+                    {:status 500
+                     :body "not implemented"})
+           
+           (GET "/oauth2" {{:keys [userid redirect_uri] :as session} :session {:strs [Authorization]} :headers {:keys [code redirect]} :params}
+                ;;(log "in oaut2 url looking for user id " userid " or auth " Authorization)
+                
                 (clojure.pprint/pprint session)
-                (if-let [credentials (when userid (. flow loadCredential userid))]
+                (if-let [credentials (if userid
+                                       ;; load via session user id
+                                       (. flow loadCredential userid)
+
+                                       ;; else, check for authorization header
+                                       (when Authorization
+                                         (let [payload (auth.sign/get-jwt (let [[_ token] (clojure.string/split Authorization #"\s")]
+                                                                            token))]
+                                           (. flow loadCredential
+                                              (get payload "id")))))]
                   {:status 200
+                   :session (assoc session :redirect_uri redirect)
+                   :headers {"Content-Type" "text/html"}
                    :body "Already logged in"}
                   (if code
                     (do
@@ -51,11 +67,22 @@
                               idtoken (. verifier verify (. token-response getIdToken))
                               payload (. idtoken getPayload)]
                           ;;(. flow createAndStoreCredential token-response)))
-                          (log (. payload getUserId) " with emsil " (. payload getEmail))
+                          ;;(log (. payload getUserId) " with emsil " (. payload getEmail))
                           (. flow createAndStoreCredential token-response (. payload getEmail))
-                          {:status 200
-                           :session (assoc session :userid (. payload getEmail))
-                           :body "Logged in"})))
+                          (if (seq redirect_uri)
+                            {:status 302
+                             :session (disssoc session :redirect_uri)
+                             :header {"Location" redirect_uri}}
+                            {:status 200
+                             ;;:session (assoc session :userid (. payload getEmail))
+                             :headers {"Content-Type" "text/html"
+                                       "Authorization" (str "Bearer " (auth.sign/sign-jwt {} (let [start (System/currentTimeMillis)
+                                                                                                   end (+ start (* 1000 60 60 1))]
+                                                                                               {"id" (. payload getEmail)
+                                                                                                "iss" "AbstractAlchemist"
+                                                                                                "iat" start
+                                                                                                "exp" end })))}
+                             :body "Logged in"}))))
                     
                     (let [auth-url (-> (. flow newAuthorizationUrl)
                                        (. setRedirectUri REDIRECT_URI)
